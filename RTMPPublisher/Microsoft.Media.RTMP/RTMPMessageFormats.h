@@ -688,10 +688,20 @@ namespace Microsoft
             else if (type == AMF0TypeMarker::EcmaArray)
             {
               //we do not process arrays -no scenarios need it yet
-              while (*itr != AMF0TypeMarker::ObjectEnd)
-                ++itr;
+             /* while (*itr != AMF0TypeMarker::ObjectEnd)
+                ++itr; */
 
-              ++itr;//go past the object end marker
+              /*
+                The old implementation had a bug where it does not correctly handle strings of length "9" in the array, since
+                9 is also the end object marker. So it mistakes the number "9" for the end of object, and looses parsing.
+              */
+              // First we skip the array length, 4 bytes
+              itr += 4;
+
+              while (itr[0] != 0 && itr[1] != 0 && itr[2] != AMF0TypeMarker::ObjectEnd)
+                  ++itr;
+             
+              itr += 3;//go past the object end marker
 
               if (inObject)
                 curPropKey = L"";
