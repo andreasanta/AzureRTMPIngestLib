@@ -160,16 +160,17 @@ Windows::Foundation::IAsyncOperation<IMediaExtension^>^ RTMPPublishSession::GetC
   if (_sink == nullptr)
     throw ref new COMException(E_ACCESSDENIED, L"Session cannot be reused. Please create a new session.");
 
-  return Concurrency::create_async([this]()
+  return concurrency::create_async([this]()
   {
-    return _sink->ConnectRTMPAsync().then([this](task<void> t)
+    auto _this = this;
+    return _sink->ConnectRTMPAsync().then([_this](task<void> t)
     {
       try
       {
         t.get();
 
-        //LOG("RTMP Connected");
-        ComPtr<IInspectable> tempInsp(_sink.Get());
+        LOG("RTMP Connected");
+        ComPtr<IInspectable> tempInsp(_this->_sink.Get());
         return reinterpret_cast<IMediaExtension^>(tempInsp.Get());
       }
       catch (COMException^ ex)
