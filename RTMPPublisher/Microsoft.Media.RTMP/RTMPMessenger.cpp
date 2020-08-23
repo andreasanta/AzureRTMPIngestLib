@@ -87,6 +87,8 @@ task<void> RTMPMessenger::HandshakeAsync()
     return HandshakeAsyncAzure();
   else if (_sessionManager->GetServerType() == RTMPServerType::Wowza)
     return HandshakeAsyncWowza();
+  else if (_sessionManager->GetServerType() == RTMPServerType::Generic)
+    return HandshakeAsyncWowza();
   else
     throw std::invalid_argument("Unknown RTMP server type");
 
@@ -245,80 +247,112 @@ task<void> RTMPMessenger::HandshakeAsyncAzure()
 
 task<void> RTMPMessenger::HandshakeAsyncWowza()
 {
-  //LOG("Handshaking with Wowza Media Server RTMP Ingest");
+  LOG("Handshaking with Generic Media Server RTMP Ingest");
   return  SendC0C1Async()
     .then([this](task<unsigned int> antecedent)
   {
 
     antecedent.get();
+    LOG("1. Initial protocol and timestamp sent");
+
     return ReceiveS0S1Async();
   })
     .then([this](task<void> antecedent)
   {
 
     antecedent.get();
+    LOG("2. Server timestamp and echo received");
+
     return SendC2Async();
   })
     .then([this](task<unsigned int> antecedent)
   {
 
     antecedent.get();
+    LOG("3. Timestamp copy sent");
+
     return ReceiveS2Async();
   })
     .then([this](task<void> antecedent)
   {
 
     antecedent.get();
+
+    LOG("4. S2 Received");
+
     return SendConnectAsync();
   })
     .then([this](task<unsigned int> antecedent)
   {
 
     antecedent.get();
+    LOG("4. Connect sent");
+
     return ReceiveConnectResponseAsync();
   })
     .then([this](task<void> antecedent)
   {
 
     antecedent.get();
+    LOG("4. Connect response received");
+
+
     return SendReleaseStreamAsync();
   })
     .then([this](task<unsigned int> antecedent)
   {
     antecedent.get();
+    LOG("5. Stream release sent");
+
     return SendFCPublishAsync();
   })
     .then([this](task<unsigned int> antecedent)
   {
 
     antecedent.get();
+    LOG("6. CF Publish sent");
+
     return ReceiveFCPublishResponseAsync();
   })
     .then([this](task<void> antecedent)
   {
     antecedent.get(); 
+
+    LOG("7. CF Publish response received");
+
     return SendCreateStreamAsync();
   })
     .then([this](task<unsigned int> antecedent)
   {
     antecedent.get();
+
+    LOG("8. Create Stream Sent");
+
     return  ReceiveCreateStreamResponseAsync();
   })
     .then([this](task<void> antecedent)
   {
     antecedent.get();
+
+    LOG("9. Create Stream received");
+
     return SendPublishStreamAsync();
   })
     .then([this](task<unsigned int> antecedent)
   {
 
     antecedent.get();
+    LOG("10. Publish Stream sent");
+
     return ReceivePublishStreamResponseAsync();
   })
     .then([this](task<void> antecedent)
   {
 
     antecedent.get();
+    LOG("11. Publish Stream received");
+
+
     if (_sessionManager->GetEncodingProfile()->Video == nullptr)
     {
       return SendSetDataFrameAsync(
@@ -355,16 +389,19 @@ task<void> RTMPMessenger::HandshakeAsyncWowza()
   {
 
     antecedent.get();
+    LOG("12. Encoding profile sent");
+
     return SendSetChunkSizeAsync(_sessionManager->GetClientChunkSize());
   })
     .then([this](task<unsigned int> antecedent)
   {
     antecedent.get();
+    LOG("13. Chunk size sent");
+
 
     _sessionManager->SetVideoChunkStreamID(_sessionManager->GetNextChunkStreamID());
     _sessionManager->SetAudioChunkStreamID(_sessionManager->GetNextChunkStreamID());
     _sessionManager->SetState(RTMPSessionState::RTMP_RUNNING);
-
 
   });
 }

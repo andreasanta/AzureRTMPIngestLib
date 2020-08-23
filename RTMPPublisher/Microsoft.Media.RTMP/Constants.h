@@ -162,7 +162,7 @@ namespace Microsoft
 
       public enum class RTMPServerType
       {
-        Azure = 0, Wowza = 1
+        Azure = 0, Wowza = 1, Generic = 2
       };
 
       DEFINE_GUID(MF_XVP_DISABLE_FRC, 0x2c0afa19, 0x7a97, 0x4d5a, 0x9e, 0xe8, 0x16, 0xd4, 0xfc, 0x51, 0x8d, 0x8c);
