@@ -77,11 +77,14 @@ namespace Microsoft
         {
           auto uri = Microsoft::Media::RTMP::Uri::Parse(_rtmpUri);
 
-          if (uri.Host().empty() || uri.Port().empty())
+          if (uri.Host().empty())
             throw std::invalid_argument("Malformed URI");
 
           _hostName = uri.Host();
-          _portNumber = uri.Port();
+
+          // If no port specified, default to RTMP default port
+          _portNumber = uri.Port().empty() ? L"1935" : uri.Port();
+          
           _serverappname = uri.Path(); 
 
           auto seed = GetNewGUIDAsString();
