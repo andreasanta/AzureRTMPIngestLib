@@ -69,7 +69,8 @@ HRESULT RTMPVideoStreamSink::CreateMediaType(MediaEncodingProfile^ encodingProfi
       return E_INVALIDARG;
 
 
-    ThrowIfFailed(ToMediaType(encodingProfile->Video, &(this->_currentMediaType)));
+    ThrowIfFailed(ToMediaType(encodingProfile->Video, &(this->_currentMediaType),
+        { MF_MT_FRAME_SIZE, MF_MT_FRAME_RATE,MF_MT_MAJOR_TYPE,MF_MT_SUBTYPE,MF_MT_AVG_BITRATE,MF_MT_INTERLACE_MODE }));
 
     _currentSubtype = safe_cast<IPropertyValue^>(encodingProfile->Video->Properties->Lookup(MF_MT_SUBTYPE))->GetGuid();
 
@@ -88,7 +89,23 @@ HRESULT RTMPVideoStreamSink::CreateMediaType(MediaEncodingProfile^ encodingProfi
     _streamsinkname = L"videosink:" + to_wstring((int)encodingProfile->Video->Bitrate);
 #endif
 
-    //LOG("Video media type created")
+
+    ComPtr<IMFAttributes> attr;
+    ThrowIfFailed(_currentMediaType.As(&attr));
+
+    MFSetAttributeSize(attr.Get(), MF_MT_FRAME_SIZE, encodingProfile->Video->Width, encodingProfile->Video->Height);
+    MFSetAttributeRatio(attr.Get(), MF_MT_FRAME_RATE, 30, 1);
+
+    attr->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+    attr->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+
+    attr->SetUINT32(MF_MT_AVG_BITRATE, encodingProfile->Video->Bitrate);
+    attr->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+
+    attr.Detach();
+      
+
+      LOG("Video media type created")
       return S_OK;
   }
   catch (const HRESULT& hr)
@@ -103,6 +120,8 @@ HRESULT RTMPVideoStreamSink::CreateMediaType(MediaEncodingProfile^ encodingProfi
 
 IFACEMETHODIMP RTMPVideoStreamSink::ProcessSample(IMFSample *pSample)
 {
+
+  LOG("RTMPVideoStreamSink::ProcessSample");
 
   std::lock_guard<std::recursive_mutex> lock(_lockSink);
 
@@ -127,7 +146,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::ProcessSample(IMFSample *pSample)
 
       if (sampleTime < _clockStartOffset) //we do not process samples predating the clock start offset;
       {
-        //LOG("Not processing video sample")
+        LOG("Not processing video sample")
           return S_OK;
       }
 
@@ -144,7 +163,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::ProcessSample(IMFSample *pSample)
       ThrowIfFailed(BeginProcessNextWorkitem(wi));
 
 #if defined(_DEBUG)
-      //LOG("Dispatched video sample - " << _streamsinkname);
+      LOG("Dispatched video sample - " << _streamsinkname);
 #endif
     }
     else
@@ -161,11 +180,11 @@ IFACEMETHODIMP RTMPVideoStreamSink::ProcessSample(IMFSample *pSample)
           ThrowIfFailed(profstate->DelegateWriter->WriteSample(sinkidx, pSample));
 
 
-          //LOG("Sent video sample to sink writer");
+          LOG("Sent video sample to sink writer");
         }
         catch (...)
         {
-          //LOG("Error sending video sample to sink writer");
+          LOG("Error sending video sample to sink writer");
           continue;
         }
       }
@@ -202,6 +221,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::ProcessSample(IMFSample *pSample)
 IFACEMETHODIMP RTMPVideoStreamSink::PlaceMarker(MFSTREAMSINK_MARKER_TYPE eMarkerType, const PROPVARIANT *pvarMarkerValue, const PROPVARIANT *pvarContextValue)
 {
 
+    LOG("RTMPVideoStreamSink::PlaceMarker");
   std::lock_guard<std::recursive_mutex> lock(_lockSink);
 
   try
@@ -229,7 +249,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::PlaceMarker(MFSTREAMSINK_MARKER_TYPE eMarker
       {
 
         SetState(SinkState::EOS);
-        //LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream end of segment");
+        LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream end of segment");
         NotifyStreamSinkMarker(markerInfo->GetContextValue());
         create_task([this]() { _mediasinkparent->StopPresentationClock(); });
       }
@@ -268,7 +288,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::PlaceMarker(MFSTREAMSINK_MARKER_TYPE eMarker
 
 
         SetState(SinkState::EOS);
-        //LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream end of segment");
+        LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream end of segment");
         NotifyStreamSinkMarker(markerInfo->GetContextValue());
 
         //if aggregating - the sink will call this on the aggregating parent
@@ -276,7 +296,7 @@ IFACEMETHODIMP RTMPVideoStreamSink::PlaceMarker(MFSTREAMSINK_MARKER_TYPE eMarker
       }
       else
       {
-        //LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream marker");
+        LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream marker");
 
         for (auto profstate : _targetProfileStates)
         {
@@ -414,7 +434,7 @@ void RTMPVideoStreamSink::PrepareTimestamps(MediaSampleInfo* sampleInfo, LONGLON
   _lastPTS = PTS;
   _lastDTS = DTS;
 
-  /* LOG("VideoStreamSink" << (IsAggregating() ? "(Agg)" : "")
+  LOG("VideoStreamSink" << (IsAggregating() ? "(Agg)" : "")
   << ":: PTS = " << "[" <<_lastOriginalPTS << "] "<<ToRTMPTimestamp(_lastOriginalPTS)
   << ", DTS = " << "[" << _lastOriginalDTS << "] " << ToRTMPTimestamp(_lastOriginalDTS)
   << ", D. PTS = " << "[" << PTS << "] " << ToRTMPTimestamp(PTS)
@@ -422,12 +442,14 @@ void RTMPVideoStreamSink::PrepareTimestamps(MediaSampleInfo* sampleInfo, LONGLON
   << ", Delta = " << "[" << TSDelta << "] " << ToRTMPTimestamp(TSDelta)
   << ", C. Offset = " << "[" << PTS - DTS << "] " << ToRTMPTimestamp(PTS - DTS)
   << ", Size = " << sampleInfo->GetTotalDataLength() << " bytes"
-  );*/
+  );
 }
 
 
 std::vector<BYTE> RTMPVideoStreamSink::MakeDecoderConfigRecord(MediaSampleInfo* pSampleInfo)
 {
+    LOG("RTMPVideoStreamSink::MakeDecoderConfigRecord");
+
   //has the media type been updated by the encoder with the sequence header ?
   std::vector<BYTE> retval;
 
@@ -496,6 +518,8 @@ std::vector<BYTE> RTMPVideoStreamSink::MakeDecoderConfigRecord(MediaSampleInfo* 
 std::vector<BYTE> RTMPVideoStreamSink::MakeAVCSample(MediaSampleInfo* pSampleInfo)
 {
 
+    LOG("RTMPVideoStreamSink::MakeAVCSample");
+
   std::vector<BYTE> retval;
 
 
@@ -523,6 +547,9 @@ std::vector<BYTE> RTMPVideoStreamSink::MakeAVCSample(MediaSampleInfo* pSampleInf
 
 HRESULT RTMPVideoStreamSink::CompleteProcessNextWorkitem(IMFAsyncResult *pAsyncResult)
 {
+
+    LOG("RTMPVideoStreamSink::CompleteProcessNextWorkitem");
+
   std::lock_guard<std::recursive_mutex> lock(_lockSink);
 
   if (!IsState(SinkState::RUNNING)) //drop the sample
@@ -609,7 +636,7 @@ HRESULT RTMPVideoStreamSink::CompleteProcessNextWorkitem(IMFAsyncResult *pAsyncR
       auto tick = markerInfo->GetMarkerTick();
       _gaplength += (tick - _lastOriginalPTS);
 
-      //LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream gap at : " << tick << ", Last Original PTS : " << _lastOriginalPTS << ", gaplength :" << _gaplength);
+      LOG("VideoStreamSink" << (IsAggregating() ? "(Aggregating)" : "") << "::Video stream gap at : " << tick << ", Last Original PTS : " << _lastOriginalPTS << ", gaplength :" << _gaplength);
 
       _lastOriginalPTS = tick;
 

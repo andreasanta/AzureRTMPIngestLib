@@ -61,14 +61,16 @@ IFACEMETHODIMP RTMPPublisherSink::AddStreamSink(DWORD dwStreamSinkIdentifier, IM
   if (IsState(SinkState::SHUTDOWN))
     return MF_E_SHUTDOWN;
 
+  LOG("RTMPPublisherSink::AddStreamSink");
+
   return MF_E_STREAMSINKS_FIXED;
 }
 
 IFACEMETHODIMP RTMPPublisherSink::GetCharacteristics(DWORD *pdwCharacteristics)
 {
+    LOG("RTMPPublisherSink::GetCharacteristics");
 
-
-  *pdwCharacteristics = MEDIASINK_FIXED_STREAMS | MEDIASINK_RATELESS;
+  *pdwCharacteristics = /*MEDIASINK_FIXED_STREAMS | */ MEDIASINK_RATELESS;
 
   return S_OK;
 }
@@ -88,31 +90,52 @@ IFACEMETHODIMP RTMPPublisherSink::GetPresentationClock(IMFPresentationClock **pp
 IFACEMETHODIMP RTMPPublisherSink::GetStreamSinkById(DWORD dwStreamSinkIdentifier, IMFStreamSink **ppStreamSink)
 {
 
+  LOG("RTMPPublisherSink::GetStreamSinkById: " << dwStreamSinkIdentifier);
+
   std::lock_guard<std::recursive_mutex> lock(SinkMutex);
 
   if (IsState(SinkState::SHUTDOWN))
     return MF_E_SHUTDOWN;
 
   if (dwStreamSinkIdentifier > 1)
-    return MF_E_INVALIDSTREAMNUMBER;
+  {
+      LOG("RTMPPublisherSink::GetStreamSinkById: INVALID!");
+      return MF_E_INVALIDSTREAMNUMBER;
+  }
 
   try
   {
     if (dwStreamSinkIdentifier == 0)
     {
+        LOG("RTMPPublisherSink::GetStreamSinkById: ZERO");
       if (_audioStreamSink == nullptr && _videoStreamSink == nullptr)
-        return E_FAIL;
+      {
+          LOG("RTMPPublisherSink::GetStreamSinkById: FAIL");
+          return E_FAIL;
+      }
       else if (_audioStreamSink == nullptr)
+      {
+        LOG("RTMPPublisherSink::GetStreamSinkById: VIDEO");
         ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
-      else
+      }
+      else {
+          LOG("RTMPPublisherSink::GetStreamSinkById: AUDIO");
         ThrowIfFailed(_audioStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+      }
     }
     else if (dwStreamSinkIdentifier == 1)
     {
-      if (_videoStreamSink == nullptr)
-        return E_FAIL;
-      else
-        ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        LOG("RTMPPublisherSink::GetStreamSinkById: ONE");
+        if (_videoStreamSink == nullptr)
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkById: FAIL");
+            return E_FAIL;
+        }
+        else
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkById: VIDEO");
+            ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        }
     }
   }
   catch (const HRESULT& hr)
@@ -127,32 +150,54 @@ IFACEMETHODIMP RTMPPublisherSink::GetStreamSinkByIndex(DWORD  dwIndex, IMFStream
 {
   std::lock_guard<std::recursive_mutex> lock(SinkMutex);
 
-
+  LOG("RTMPPublisherSink::GetStreamSinkByIndex: " << dwIndex);
 
   if (IsState(SinkState::SHUTDOWN))
-    return MF_E_SHUTDOWN;
+  {
+      LOG("RTMPPublisherSink::GetStreamSinkByIndex: SHUTDOWN");
+      return MF_E_SHUTDOWN;
+  }
 
   if (dwIndex > 1)
-    return MF_E_INVALIDINDEX;
+  {
+      LOG("RTMPPublisherSink::GetStreamSinkByIndex FAILED: " << dwIndex);
+      return MF_E_INVALIDINDEX;
+  }
 
   try
   {
     if (dwIndex == 0)
     {
-      if (_audioStreamSink == nullptr && _videoStreamSink == nullptr)
-        return E_FAIL;
-      else if (_audioStreamSink == nullptr)
-        ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
-      else
-        ThrowIfFailed(_audioStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        LOG("RTMPPublisherSink::GetStreamSinkByIndex: ZERO");
+        if (_audioStreamSink == nullptr && _videoStreamSink == nullptr)
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkByIndex: FAIL");
+            return E_FAIL;
+        }
+        else if (_audioStreamSink == nullptr)
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkByIndex: VIDEO");
+            ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        }
+        else {
+            LOG("RTMPPublisherSink::GetStreamSinkByIndex: AUDIO");
+            ThrowIfFailed(_audioStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        }
 
     }
     else if (dwIndex == 1)
     {
-      if (_videoStreamSink == nullptr)
-        return E_FAIL;
-      else
-        ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        LOG("RTMPPublisherSink::GetStreamSinkByIndex: ONE");
+        if (_videoStreamSink == nullptr)
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkByIndex: FAIL");
+            return E_FAIL;
+        }
+        else
+        {
+            LOG("RTMPPublisherSink::GetStreamSinkByIndex: VIDEO");
+            ThrowIfFailed(_videoStreamSink.Get()->QueryInterface(IID_PPV_ARGS(ppStreamSink)));
+        }
     }
   }
   catch (const HRESULT& hr)
@@ -169,10 +214,18 @@ IFACEMETHODIMP RTMPPublisherSink::GetStreamSinkCount(DWORD *pcStreamSinkCount)
   HRESULT hr = S_OK;
   std::lock_guard<std::recursive_mutex> lock(SinkMutex);
 
+  LOG("RTMPPublisherSink::GetStreamSinkCount");
+
   if (_audioStreamSink != nullptr && _videoStreamSink != nullptr)
-    *pcStreamSinkCount = 2;
+  {
+      LOG("RTMPPublisherSink::GetStreamSinkCount 2");
+      *pcStreamSinkCount = 2;
+  }
   else
-    *pcStreamSinkCount = 1;
+  {
+      LOG("RTMPPublisherSink::GetStreamSinkCount 1");
+      *pcStreamSinkCount = 1;
+  }
 
   return hr;
 }
@@ -190,7 +243,7 @@ IFACEMETHODIMP RTMPPublisherSink::RemoveStreamSink(DWORD dwStreamSinkIdentifier)
 IFACEMETHODIMP RTMPPublisherSink::SetPresentationClock(IMFPresentationClock *pPresentationClock)
 {
 
-  //LOG("RTMPPublisherSink" << (IsAggregating() ? "(Aggregating)" : (IsAggregated() ? "(Child)" : "")) << "::SetPresentationClock()");
+  LOG("RTMPPublisherSink" << (IsAggregating() ? "(Aggregating)" : (IsAggregated() ? "(Child)" : "")) << "::SetPresentationClock()");
 
   if (IsState(SinkState::SHUTDOWN))
     return MF_E_SHUTDOWN;
@@ -216,7 +269,6 @@ IFACEMETHODIMP RTMPPublisherSink::SetPresentationClock(IMFPresentationClock *pPr
       {        
         ThrowIfFailed(profstate->DelegateSink->GetStreamSinkIndex(MFMediaType_Audio, audioSinkIndex));     
         ThrowIfFailed(profstate->DelegateWriter->SetInputMediaType(audioSinkIndex, mtype.Get(), nullptr));
-
       }
  
     }
@@ -271,7 +323,7 @@ IFACEMETHODIMP RTMPPublisherSink::Shutdown()
   if (dxgimgr != nullptr)
     MFUnlockDXGIDeviceManager();
 
-  //LOG("RTMPPublisherSink" << (IsAggregating() ? "(Aggregating)" : (IsAggregated() ? "(Child)" : "")) << "::Shutdown()");
+  LOG("RTMPPublisherSink" << (IsAggregating() ? "(Aggregating)" : (IsAggregated() ? "(Child)" : "")) << "::Shutdown()");
 
   SetState(SinkState::SHUTDOWN);
 

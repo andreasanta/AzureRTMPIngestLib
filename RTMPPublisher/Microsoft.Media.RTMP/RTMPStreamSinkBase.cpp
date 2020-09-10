@@ -205,12 +205,15 @@ IFACEMETHODIMP RTMPStreamSinkBase::GetMediaSink(IMFMediaSink **ppMediaSink)
 
 IFACEMETHODIMP RTMPStreamSinkBase::GetIdentifier(DWORD *pdwIdentifier)
 {
+    LOG("RTMPStreamSinkBase::GetIdentifier" << _streamid);
   *pdwIdentifier = _streamid;
   return S_OK;
 }
 
 IFACEMETHODIMP RTMPStreamSinkBase::GetMediaTypeHandler(IMFMediaTypeHandler **ppHandler)
 {
+    LOG("RTMPStreamSinkBase::GetMediaTypeHandler");
+
   HRESULT hr = S_OK;
 
   if (_mediasinkparent == nullptr)
@@ -234,22 +237,29 @@ IFACEMETHODIMP RTMPStreamSinkBase::Flush()
 
 IFACEMETHODIMP RTMPStreamSinkBase::GetCurrentMediaType(IMFMediaType **ppMediaType)
 {
+  LOG("RTMPStreamSinkBase::GetCurrentMediaType");
+
   if (_currentMediaType == nullptr)
     return MF_E_NOT_INITIALIZED;
 
   _currentMediaType.Get()->QueryInterface(IID_PPV_ARGS(ppMediaType));
+
+  LOG("RTMPStreamSinkBase::GetCurrentMediaType OK");
 
   return S_OK;
 }
 
 IFACEMETHODIMP RTMPStreamSinkBase::GetMajorType(GUID *pguidMajorType)
 {
+    LOG("RTMPStreamSinkBase::GetMajorType");
   *pguidMajorType = _majorType;
   return S_OK;
 }
 
 IFACEMETHODIMP RTMPStreamSinkBase::GetMediaTypeByIndex(DWORD dwIndex, IMFMediaType **ppType)
 {
+    LOG("RTMPStreamSinkBase::GetMediaTypeByIndex: " << dwIndex);
+
   if (dwIndex > 0)
     return MF_E_NO_MORE_TYPES;
 
@@ -262,6 +272,8 @@ IFACEMETHODIMP RTMPStreamSinkBase::GetMediaTypeCount(DWORD *pdwTypeCount)
 {
   *pdwTypeCount = 1;
 
+  LOG("RTMPStreamSinkBase::GetMediaTypeCount 1");
+
   return S_OK;
 }
 
@@ -269,6 +281,8 @@ IFACEMETHODIMP RTMPStreamSinkBase::IsMediaTypeSupported(IMFMediaType *pMediaType
 {
   GUID tgtMajorType = GUID_NULL;
   GUID tgtSubtype = GUID_NULL;
+
+  LOG("RTMPStreamSinkBase::IsMediaTypeSupported");
 
   try
   {
@@ -278,12 +292,18 @@ IFACEMETHODIMP RTMPStreamSinkBase::IsMediaTypeSupported(IMFMediaType *pMediaType
     ThrowIfFailed(pMediaType->GetGUID(MF_MT_MAJOR_TYPE, &tgtMajorType));
 
     if (tgtMajorType != _majorType)
-      throw MF_E_INVALIDMEDIATYPE;
+    {
+        LOG("RTMPStreamSinkBase::IsMediaTypeSupported: Invalid Major");
+        throw MF_E_INVALIDMEDIATYPE;
+    }
 
     ThrowIfFailed(pMediaType->GetGUID(MF_MT_SUBTYPE, &tgtSubtype));
 
     if (_currentMediaType != nullptr && tgtSubtype != _currentSubtype)
-      throw MF_E_INVALIDMEDIATYPE;
+    {
+        LOG("RTMPStreamSinkBase::IsMediaTypeSupported: Invalid Subtype");
+        throw MF_E_INVALIDMEDIATYPE;
+    }
 
 
     if (ppMediaType)
@@ -304,6 +324,8 @@ IFACEMETHODIMP RTMPStreamSinkBase::SetCurrentMediaType(IMFMediaType *pMediaType)
 
   GUID tgtMajorType = GUID_NULL;
   GUID tgtSubtype = GUID_NULL;
+
+  LOG("RTMPStreamSinkBase::SetCurrentMediaType");
 
   try
   {
@@ -338,7 +360,6 @@ HRESULT RTMPStreamSinkBase::ToMediaType(IMediaEncodingProperties^ encodingProps,
     ComPtr<IMFMediaType> mediaType;
     
 
-
     ThrowIfFailed(MFCreateMediaType(&mediaType));
 
     ComPtr<IMFAttributes> attr;
@@ -363,6 +384,7 @@ HRESULT RTMPStreamSinkBase::ToMediaType(IMediaEncodingProperties^ encodingProps,
       switch (val->Type)
       {
       case PropertyType::String:
+          
         ThrowIfFailed(attr->SetString(key, val->GetString()->Data()));
         break;
       case PropertyType::UInt32:
